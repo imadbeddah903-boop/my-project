@@ -13,7 +13,13 @@
 <div id="end" class="overlay hidden"><div class="card"><h1 id="endTitle">ROUND OVER</h1><p id="endText">You survived the arena.</p><button id="againBtn" class="btn">PLAY AGAIN</button></div></div>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-const scene=new THREE.Scene();scene.background=new THREE.Color(0x8fc7d2);scene.fog=new THREE.Fog(0x8fc7d2,42,110);
+const scene=new THREE.Scene();
+const skyCanvas=document.createElement('canvas');skyCanvas.width=1024;skyCanvas.height=512;
+const skyCtx=skyCanvas.getContext('2d');const skyGrad=skyCtx.createLinearGradient(0,0,0,512);
+skyGrad.addColorStop(0,'#1768bd');skyGrad.addColorStop(.48,'#62b9f0');skyGrad.addColorStop(1,'#d8f2ff');skyCtx.fillStyle=skyGrad;skyCtx.fillRect(0,0,1024,512);
+for(let i=0;i<22;i++){const x=(i*173+71)%1024,y=75+(i*47)%220;skyCtx.globalAlpha=.16+(i%4)*.035;skyCtx.fillStyle='#fff';for(let j=0;j<5;j++){skyCtx.beginPath();skyCtx.ellipse(x+j*25,y+Math.sin(j)*7,35,13,0,0,Math.PI*2);skyCtx.fill()}}skyCtx.globalAlpha=1;
+const skyTexture=new THREE.CanvasTexture(skyCanvas);skyTexture.colorSpace=THREE.SRGBColorSpace;
+const scene=new THREE.Scene();scene.background=skyTexture;scene.fog=new THREE.Fog(0xb5dff2,75,150);
 const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,220);
 const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.8));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;document.body.appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xd9f7ff,0x39553c,2));const sun=new THREE.DirectionalLight(0xfff0ce,2.5);sun.position.set(-18,35,20);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
@@ -22,7 +28,25 @@ const grass=mat(0x5a9b68),sand=mat(0xc4b77e),dark=mat(0x34434b),wood=mat(0x86664
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(180,180),grass);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
 const water=new THREE.Mesh(new THREE.CircleGeometry(90,64),mat(0x56aab9));water.rotation.x=-Math.PI/2;water.position.y=-.25;scene.add(water);
 const obstacles=[];function box(x,y,z,sx,sy,sz,material,collide=true){const m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),material);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);if(collide)obstacles.push({x,z,rx:sx/2+.65,rz:sz/2+.65});return m}
-for(let i=0;i<18;i++){const a=i*2.4,r=16+(i%5)*7,x=Math.cos(a)*r,z=Math.sin(a)*r;box(x,.7,z,3,1.4,3,wood);box(x,1.55,z,3.4,.3,3.4,roof,false);if(i%3===0){const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.22,.35,2.4,7),wood);trunk.position.set(x+4,1.2,z-3);trunk.castShadow=true;scene.add(trunk);const crown=new THREE.Mesh(new THREE.ConeGeometry(1.5,3.4,7),leaf);crown.position.set(x+4,3.5,z-3);crown.castShadow=true;scene.add(crown);obstacles.push({x:x+4,z:z-3,rx:1.1,rz:1.1})}}
+function makeHouse(x,z,scale=1,variant=0){
+ const w=4.8*scale,d=4.2*scale,h=2.7*scale;
+ const wallM=[mat(0xd6c7a5),mat(0xc6b38e),mat(0xd9d6c9)][variant%3];
+ // Four solid walls with a visible front door and blue windows.
+ box(x,h/2,z-d/2,w,h,.18,wallM,true);box(x,h/2,z+d/2,w,h,.18,wallM,true);
+ box(x-w/2,h/2,z,.18,h,d,wallM,true);box(x+w/2,h/2,z,.18,h,d,wallM,true);
+ const door= new THREE.Mesh(new THREE.BoxGeometry(.82*scale,1.85*scale,.09*scale),wood);door.position.set(x,.92*scale,z+d/2+.12);door.castShadow=true;scene.add(door);
+ const winM=new THREE.MeshStandardMaterial({color:0x69c9e8,roughness:.25,metalness:.1});
+ for(const side of [-1,1]){const win=new THREE.Mesh(new THREE.BoxGeometry(.9*scale,.72*scale,.08*scale),winM);win.position.set(x+side*1.35*scale,1.65*scale,z+d/2+.13);scene.add(win);const frame=new THREE.Mesh(new THREE.BoxGeometry(.09*scale,.82*scale,.1*scale),mat(0xf0e6d1));frame.position.set(win.position.x,win.position.y,win.position.z+.015);scene.add(frame)}
+ // Two pitched roof panels create a recognizable house silhouette.
+ const roofGeo=new THREE.BoxGeometry(w*.57,.16*scale,d+.5*scale);
+ const leftRoof=new THREE.Mesh(roofGeo,variant%2?mat(0x9b5947):mat(0x596b75));
+ leftRoof.position.set(x-w*.25,h+.62*scale,z);leftRoof.rotation.z=-.42;leftRoof.castShadow=true;scene.add(leftRoof);
+ const rightRoof=new THREE.Mesh(roofGeo,variant%2?mat(0x9b5947):mat(0x596b75));
+ rightRoof.position.set(x+w*.25,h+.62*scale,z);rightRoof.rotation.z=.42;rightRoof.castShadow=true;scene.add(rightRoof);
+ obstacles.push({x,z,rx:w*.53+.65,rz:d*.53+.65});
+}
+for(let i=0;i<12;i++){const a=i*2.4,r=18+(i%4)*8,x=Math.cos(a)*r,z=Math.sin(a)*r;makeHouse(x,z,.78+(i%3)*.12,i%3);
+ if(i%2===0){const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.22,.35,2.4,7),wood);trunk.position.set(x+5,1.2,z-3);trunk.castShadow=true;scene.add(trunk);const crown=new THREE.Mesh(new THREE.SphereGeometry(1.45,9,7),leaf);crown.position.set(x+5,3.1,z-3);crown.castShadow=true;scene.add(crown);obstacles.push({x:x+5,z:z-3,rx:1.1,rz:1.1})}}
 for(let i=0;i<40;i++){const x=(Math.random()-.5)*100,z=(Math.random()-.5)*100;if(Math.hypot(x,z)<12)continue;const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(.3+Math.random()*.65,0),mat(0x778783));rock.position.set(x,.35,z);rock.scale.y=.7;rock.castShadow=true;scene.add(rock)}
 // Player model
 const player=new THREE.Group();scene.add(player);player.position.set(0,0,0);
